@@ -10,7 +10,6 @@ from .outliner import outline_crew
 from .researcher import research_crew
 
 
-
 class ProjectInfo(BaseModel):
     topic: Optional[str] = None
     citation_style: Optional[str] = None
@@ -18,36 +17,36 @@ class ProjectInfo(BaseModel):
     outline: Optional[dict] = None
 
 
-
-
 class ThesisWritingFlow(Flow[ProjectInfo]):
     @start()
     async def get_project_info(self):
         return ProjectInfo(
-            topic=self.state.topic,
-            citation_style=self.state.citation_style
+            topic=self.state.topic, citation_style=self.state.citation_style
         )
 
     @listen(get_project_info)
     def research(self):
 
-        crew_result = research_crew.kickoff(inputs={
-            'topic':self.state.topic,
-            'citation_style':self.state.citation_style
-        })
+        crew_result = research_crew.kickoff(
+            inputs={
+                "topic": self.state.topic,
+                "citation_style": self.state.citation_style,
+            }
+        )
         self.state.research_summary = crew_result.raw
         return self.state.research_summary
 
     @listen(research)
     def outliner(self):
-        crew_result = outline_crew.kickoff(inputs={
-            "topic":self.state.topic,
-            "citation_style":self.state.citation_style,
-            "research_summary":self.state.research_summary
-        })
+        crew_result = outline_crew.kickoff(
+            inputs={
+                "topic": self.state.topic,
+                "citation_style": self.state.citation_style,
+                "research_summary": self.state.research_summary,
+            }
+        )
         self.state.outline = crew_result.raw
         return self.state.outline
-
 
     @listen(outliner)
     def writer(self):
@@ -75,9 +74,10 @@ class ThesisWritingFlow(Flow[ProjectInfo]):
 
                 return writer_crew.kickoff_for_each(inputs=clean_outline)
 
-
         # Expecting OutlineResult-like structure with a "structure" list
-        sections = outline_data.get("structure", []) if isinstance(outline_data, dict) else []
+        sections = (
+            outline_data.get("structure", []) if isinstance(outline_data, dict) else []
+        )
 
         for section in sections:
             clean_outline.append(
@@ -96,18 +96,21 @@ class ThesisWritingFlow(Flow[ProjectInfo]):
         # Call the writer crew once per section with full context
         return writer_crew.kickoff_for_each(inputs=clean_outline)
 
+
 async def run_flow(project: ProjectInfo):
     print(f"Running flow for project: {project.topic}")
     flow = ThesisWritingFlow()
-    result = await flow.kickoff_async(inputs={
-        'topic':project.topic,
-        'citation_style':project.citation_style
-    })
+    result = await flow.kickoff_async(
+        inputs={"topic": project.topic, "citation_style": project.citation_style}
+    )
     print("result", result)
     return result
 
 
 if __name__ == "__main__":
-    project = ProjectInfo(topic="Prevalence of Poorly Fitting Dentures in Elderly Nigerians and Contributing Factors", citation_style="APA")
+    project = ProjectInfo(
+        topic="Prevalence of Poorly Fitting Dentures in Elderly Nigerians and Contributing Factors",
+        citation_style="APA",
+    )
 
     asyncio.run(run_flow(project))

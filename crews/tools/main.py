@@ -10,13 +10,13 @@ from typing import Optional
 from bs4 import BeautifulSoup
 from dotenv import load_dotenv
 import os
+
 load_dotenv()
 
 BRIGHT_DATA_API_KEY = os.getenv("BRIGHT_DATA_API_KEY")
 BRIGHT_DATA_ZONE = os.getenv("BRIGHT_DATA_ZONE")
 
 # Headers and data will be created dynamically in the tool methods
-
 
 
 class EnhancedPDFReaderTool(BaseTool):
@@ -44,14 +44,21 @@ class EnhancedPDFReaderTool(BaseTool):
 
         try:
             # Download the PDF
-            response = requests.get(pdf_url, timeout=30, headers={
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-            })
+            response = requests.get(
+                pdf_url,
+                timeout=30,
+                headers={
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+                },
+            )
             response.raise_for_status()
 
             # Check if the content is actually a PDF
-            content_type = response.headers.get('content-type', '')
-            if 'application/pdf' not in content_type.lower() and not pdf_url.lower().endswith('.pdf'):
+            content_type = response.headers.get("content-type", "")
+            if (
+                "application/pdf" not in content_type.lower()
+                and not pdf_url.lower().endswith(".pdf")
+            ):
                 return f"Error: URL does not appear to point to a PDF file. Content-Type: {content_type}"
 
             # Read PDF from bytes
@@ -75,11 +82,18 @@ class EnhancedPDFReaderTool(BaseTool):
                     # Extract tables if any
                     tables = page.extract_tables()
                     if tables:
-                        extracted_text += f"\n[Found {len(tables)} table(s) on this page]\n"
+                        extracted_text += (
+                            f"\n[Found {len(tables)} table(s) on this page]\n"
+                        )
                         for table_num, table in enumerate(tables, 1):
                             extracted_text += f"\nTable {table_num}:\n"
                             for row in table:
-                                extracted_text += " | ".join([str(cell) if cell else "" for cell in row]) + "\n"
+                                extracted_text += (
+                                    " | ".join(
+                                        [str(cell) if cell else "" for cell in row]
+                                    )
+                                    + "\n"
+                                )
                             extracted_text += "\n"
 
             if not extracted_text.strip():
@@ -88,7 +102,9 @@ class EnhancedPDFReaderTool(BaseTool):
             return extracted_text.strip()
 
         except requests.exceptions.Timeout:
-            return f"Error: Request timed out while trying to download PDF from {pdf_url}"
+            return (
+                f"Error: Request timed out while trying to download PDF from {pdf_url}"
+            )
         except requests.exceptions.RequestException as e:
             return f"Error downloading PDF: {str(e)}"
         except Exception as e:
@@ -156,6 +172,7 @@ class PDFMetadataReaderTool(BaseTool):
         except Exception as e:
             return f"Error reading PDF metadata: {str(e)}"
 
+
 class BrightDataWebUnlockerTool(BaseTool):
     name: str = "BrightData Web Unlocker"
     description: str = (
@@ -174,12 +191,12 @@ class BrightDataWebUnlockerTool(BaseTool):
             data = {
                 "zone": BRIGHT_DATA_ZONE,
                 "url": url,
-                "format": "raw"  # Changed from "html" to "raw" as per documentation
+                "format": "raw",  # Changed from "html" to "raw" as per documentation
             }
 
             headers = {
                 "Authorization": f"Bearer {BRIGHT_DATA_API_KEY}",
-                "Content-Type": "application/json"
+                "Content-Type": "application/json",
             }
 
             # Make the API request to the correct BrightData endpoint
@@ -187,7 +204,9 @@ class BrightDataWebUnlockerTool(BaseTool):
             print(f"🌐 Making BrightData API request to: {api_url}")
             print(f"📋 Request data: {data}")
 
-            response = requests.post(api_url, json=data, headers=headers)  # Correct parameter order
+            response = requests.post(
+                api_url, json=data, headers=headers
+            )  # Correct parameter order
 
             # Check for errors and provide detailed information
             if response.status_code != 200:
@@ -199,17 +218,38 @@ class BrightDataWebUnlockerTool(BaseTool):
 
             # Since we're using "raw" format, the response should be HTML content
             # Parse HTML and extract clean content
-            soup = BeautifulSoup(response.text, 'html.parser')
+            soup = BeautifulSoup(response.text, "html.parser")
 
             # Remove unwanted elements
-            for element in soup(["script", "style", "nav", "footer", "header", "aside", "menu", "sidebar"]):
+            for element in soup(
+                [
+                    "script",
+                    "style",
+                    "nav",
+                    "footer",
+                    "header",
+                    "aside",
+                    "menu",
+                    "sidebar",
+                ]
+            ):
                 element.decompose()
 
             # Extract text from main content areas
             content_selectors = [
-                'main', 'article', '.content', '.main-content', '.post-content',
-                '.entry-content', '.article-content', '.text-content', '.body-content',
-                '[role="main"]', '.page-content', '.post-body', '.entry-body'
+                "main",
+                "article",
+                ".content",
+                ".main-content",
+                ".post-content",
+                ".entry-content",
+                ".article-content",
+                ".text-content",
+                ".body-content",
+                '[role="main"]',
+                ".page-content",
+                ".post-body",
+                ".entry-body",
             ]
 
             text_content = ""
@@ -217,16 +257,18 @@ class BrightDataWebUnlockerTool(BaseTool):
                 elements = soup.select(selector)
                 if elements:
                     for element in elements:
-                        text_content += element.get_text(separator=' ', strip=True) + "\n"
+                        text_content += (
+                            element.get_text(separator=" ", strip=True) + "\n"
+                        )
                     break
 
             # If no main content found, get text from body
             if not text_content.strip():
-                body = soup.find('body')
+                body = soup.find("body")
                 if body:
-                    text_content = body.get_text(separator=' ', strip=True)
+                    text_content = body.get_text(separator=" ", strip=True)
                 else:
-                    text_content = soup.get_text(separator=' ', strip=True)
+                    text_content = soup.get_text(separator=" ", strip=True)
 
             # Clean up the text
             cleaned_content = self._clean_text(text_content)
@@ -234,7 +276,9 @@ class BrightDataWebUnlockerTool(BaseTool):
             # Limit content length to prevent token overflow
             max_length = 15000
             if len(cleaned_content) > max_length:
-                cleaned_content = self._truncate_intelligently(cleaned_content, max_length)
+                cleaned_content = self._truncate_intelligently(
+                    cleaned_content, max_length
+                )
 
             return cleaned_content
 
@@ -247,7 +291,7 @@ class BrightDataWebUnlockerTool(BaseTool):
                 # requests and BeautifulSoup are already imported at the top
 
                 headers = {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
                 }
 
                 response = requests.get(url, headers=headers, timeout=30)
@@ -262,22 +306,37 @@ class BrightDataWebUnlockerTool(BaseTool):
 
                 response.raise_for_status()
 
-                soup = BeautifulSoup(response.text, 'html.parser')
+                soup = BeautifulSoup(response.text, "html.parser")
 
                 # Remove unwanted elements
-                for element in soup(["script", "style", "nav", "footer", "header", "aside", "menu", "sidebar"]):
+                for element in soup(
+                    [
+                        "script",
+                        "style",
+                        "nav",
+                        "footer",
+                        "header",
+                        "aside",
+                        "menu",
+                        "sidebar",
+                    ]
+                ):
                     element.decompose()
 
                 # Extract text content
-                text_content = soup.get_text(separator=' ', strip=True)
+                text_content = soup.get_text(separator=" ", strip=True)
                 cleaned_content = self._clean_text(text_content)
 
                 # Limit content length
                 max_length = 15000
                 if len(cleaned_content) > max_length:
-                    cleaned_content = self._truncate_intelligently(cleaned_content, max_length)
+                    cleaned_content = self._truncate_intelligently(
+                        cleaned_content, max_length
+                    )
 
-                print(f"✅ Fallback scraping completed: {len(cleaned_content)} characters")
+                print(
+                    f"✅ Fallback scraping completed: {len(cleaned_content)} characters"
+                )
                 return cleaned_content
 
             except Exception as fallback_error:
@@ -289,21 +348,25 @@ class BrightDataWebUnlockerTool(BaseTool):
     def _clean_text(self, text: str) -> str:
         """Clean and format the extracted text"""
         # Split into lines and clean each line
-        lines = text.split('\n')
+        lines = text.split("\n")
         cleaned_lines = []
 
         for line in lines:
             line = line.strip()
             # Skip empty lines, very short lines, and navigation elements
-            if (len(line) > 15 and
-                not line.isdigit() and
-                not line.startswith(('http://', 'https://', 'www.')) and
-                not line.lower().startswith(('click here', 'read more', 'learn more', 'view all'))):
+            if (
+                len(line) > 15
+                and not line.isdigit()
+                and not line.startswith(("http://", "https://", "www."))
+                and not line.lower().startswith(
+                    ("click here", "read more", "learn more", "view all")
+                )
+            ):
                 cleaned_lines.append(line)
 
         # Join lines and clean up multiple spaces
-        result = '\n'.join(cleaned_lines)
-        result = ' '.join(result.split())  # Remove multiple spaces
+        result = "\n".join(cleaned_lines)
+        result = " ".join(result.split())  # Remove multiple spaces
 
         return result
 
@@ -316,18 +379,22 @@ class BrightDataWebUnlockerTool(BaseTool):
         truncated = text[:max_length]
 
         # Find the last complete sentence
-        last_period = truncated.rfind('.')
-        last_exclamation = truncated.rfind('!')
-        last_question = truncated.rfind('?')
-        last_newline = truncated.rfind('\n')
+        last_period = truncated.rfind(".")
+        last_exclamation = truncated.rfind("!")
+        last_question = truncated.rfind("?")
+        last_newline = truncated.rfind("\n")
 
         # Use the best truncation point
         truncate_at = max(last_period, last_exclamation, last_question, last_newline)
 
         if truncate_at > max_length * 0.8:  # Only if we can keep 80% of content
-            truncated = truncated[:truncate_at + 1]
+            truncated = truncated[: truncate_at + 1]
 
-        return truncated + f"\n\n[Content truncated from {len(text)} to {len(truncated)} characters]"
+        return (
+            truncated
+            + f"\n\n[Content truncated from {len(text)} to {len(truncated)} characters]"
+        )
+
 
 # Example usage with CrewAI
 if __name__ == "__main__":
@@ -339,11 +406,11 @@ if __name__ == "__main__":
 
     # Create an agent with the PDF reading capability
     research_agent = Agent(
-        role='Research Analyst',
-        goal='Extract and analyze information from PDF documents',
-        backstory='An expert at reading and analyzing PDF documents to extract key insights.',
+        role="Research Analyst",
+        goal="Extract and analyze information from PDF documents",
+        backstory="An expert at reading and analyzing PDF documents to extract key insights.",
         tools=[pdf_reader, pdf_metadata],
-        verbose=True
+        verbose=True,
     )
 
     # Create a task
@@ -355,15 +422,11 @@ if __name__ == "__main__":
         PDF URL: https://www.example.com/document.pdf
         """,
         agent=research_agent,
-        expected_output="A comprehensive summary of the PDF content with key insights."
+        expected_output="A comprehensive summary of the PDF content with key insights.",
     )
 
     # Create and run the crew
-    crew = Crew(
-        agents=[research_agent],
-        tasks=[analysis_task],
-        verbose=True
-    )
+    crew = Crew(agents=[research_agent], tasks=[analysis_task], verbose=True)
 
     # Execute
     result = crew.kickoff()

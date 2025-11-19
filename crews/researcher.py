@@ -1,19 +1,28 @@
 from crewai import Crew, Agent, Task, LLM, TaskOutput
 from dotenv import load_dotenv
-from .tools.main import BrightDataWebUnlockerTool, EnhancedPDFReaderTool, PDFMetadataReaderTool
+from .tools.main import (
+    BrightDataWebUnlockerTool,
+    EnhancedPDFReaderTool,
+    PDFMetadataReaderTool,
+)
 from crewai_tools import ScrapeWebsiteTool, SerperDevTool, WebsiteSearchTool
 from pydantic import BaseModel, Field
 
+
 class ResearchOutput(BaseModel):
     sources: list[dict] = Field(description="List of sources found in the research")
-    research_summary: str = Field(description="Overall research summary and main themes")
+    research_summary: str = Field(
+        description="Overall research summary and main themes"
+    )
     research_gaps: str = Field(description="Identified research gaps")
     recommendations: str = Field(description="Recommended research directions")
     total_sources_found: int = Field(description="Total number of sources found")
     pdf_sources_count: int = Field(description="Number of PDF sources found")
     web_sources_count: int = Field(description="Number of web sources found")
 
+
 import os
+
 load_dotenv()
 
 scrape_website_tool = BrightDataWebUnlockerTool()
@@ -23,25 +32,28 @@ pdf_reader = EnhancedPDFReaderTool()
 pdf_metadata = PDFMetadataReaderTool()
 
 
-llm= LLM(
-    model="gpt-4o-mini",
-    api_key=os.getenv("OPENAI_API_KEY")
-)
+llm = LLM(model="gpt-4o-mini", api_key=os.getenv("OPENAI_API_KEY"))
 
 
 # Collect all tools, filtering out None values
 research_tools = []
 tool_names = []
-for tool in [serper_dev_tool, scrape_website_tool, website_search_tool, pdf_reader, pdf_metadata]:
+for tool in [
+    serper_dev_tool,
+    scrape_website_tool,
+    website_search_tool,
+    pdf_reader,
+    pdf_metadata,
+]:
     if tool is not None:
         research_tools.append(tool)
-        tool_names.append(getattr(tool, 'name', str(tool)))
+        tool_names.append(getattr(tool, "name", str(tool)))
 
 
-def validate_total_research_output(result:TaskOutput):
+def validate_total_research_output(result: TaskOutput):
     "Validate that the total number of source is not less that 10 sources"
     try:
-        total_sources = result.json()['total_sources_found']
+        total_sources = result.json()["total_sources_found"]
 
         print(f"Total sources found: {total_sources}")
         if total_sources < 10:
@@ -50,6 +62,7 @@ def validate_total_research_output(result:TaskOutput):
     except Exception as e:
         print(f"Error validating total research output: {e}")
         return False
+
 
 research_agent = Agent(
     role="Research Specialist",
@@ -69,12 +82,12 @@ research_agent = Agent(
     verbose=True,
     allow_delegation=False,
     llm=llm,
-    tools=research_tools
+    tools=research_tools,
 )
 
 
 research_task = Task(
-        description="""
+    description="""
         Topic: {topic}
         Citation Style: {citation_style}
 
@@ -108,8 +121,8 @@ research_task = Task(
         - Diverse perspectives on the topic
         - High-quality web content from academic institutions
         """,
-        agent=research_agent,
-        expected_output="""
+    agent=research_agent,
+    expected_output="""
         Return a JSON object with this exact structure:
         {
             "sources": [
@@ -139,8 +152,8 @@ research_task = Task(
 
         IMPORTANT: Return ONLY valid JSON. No additional text or explanations outside the JSON structure.
         """,
-        output_json=ResearchOutput,
-        guardrail="""
+    output_json=ResearchOutput,
+    guardrail="""
         CRITICAL REQUIREMENT: The total number of sources found (total_sources_found) must be greater than 10.
 
         If you find fewer than 10 sources:
@@ -158,14 +171,8 @@ research_task = Task(
         5. Continue searching until you have found at least 10 high-quality sources
 
         Do NOT return results with fewer than 10 sources. Keep refining and searching until you meet this requirement.
-        """
-
-
-    )
-
-
-research_crew = Crew(
-    agents=[research_agent],
-    tasks=[research_task],
-    verbose=True
+        """,
 )
+
+
+research_crew = Crew(agents=[research_agent], tasks=[research_task], verbose=True)

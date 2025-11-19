@@ -2,18 +2,25 @@ from crewai import Crew, Agent, Task, LLM
 from dotenv import load_dotenv
 from pydantic import BaseModel, Field
 import os
+
 load_dotenv()
+
 
 # Pydantic models for writing output
 class Citation(BaseModel):
     """Citation information"""
+
     in_text: str = Field(description="In-text citation format, e.g., (Author, Year)")
-    full_citation: str = Field(description="Full citation in the specified citation style")
+    full_citation: str = Field(
+        description="Full citation in the specified citation style"
+    )
     source_id: str = Field(description="ID of the source being cited")
     page_number: str = Field(default="", description="Page number if applicable")
 
+
 class SubsectionContent(BaseModel):
     """Content for a subsection"""
+
     section_title: str = Field(description="Title of the subsection")
     parent_section: str = Field(description="Name of the parent section")
     section_type: str = Field(description="Type of subsection")
@@ -22,28 +29,36 @@ class SubsectionContent(BaseModel):
     # citations_used: list[Citation] = Field(default_factory=list, description="Citations used in this subsection")
     # sources_referenced: list[str] = Field(default_factory=list, description="Source IDs referenced in this subsection")
 
+
 class SectionContent(BaseModel):
     """Content for a main section with its subsections"""
+
     section_title: str = Field(description="Title of the section")
     section_type: str = Field(description="Type of section")
-    content: str = Field(description="Full comprehensive content in MDX format (intro if has subsections, full content if no subsections)")
+    content: str = Field(
+        description="Full comprehensive content in MDX format (intro if has subsections, full content if no subsections)"
+    )
     word_count: int = Field(description="Actual word count of the main section content")
     # citations_used: list[Citation] = Field(default_factory=list, description="Citations used in the main section")
     # sources_referenced: list[str] = Field(default_factory=list, description="Source IDs referenced in the main section")
-    subsections: list[SubsectionContent] = Field(default_factory=list, description="List of subsections with full content")
+    subsections: list[SubsectionContent] = Field(
+        default_factory=list, description="List of subsections with full content"
+    )
+
 
 class SingleSectionWritingResult(BaseModel):
     """Result for writing a single section with all its subsections"""
-    section: SectionContent = Field(description="The complete section with main content and all subsections")
+
+    section: SectionContent = Field(
+        description="The complete section with main content and all subsections"
+    )
     # total_word_count: int = Field(description="Total word count including main section and all subsections")
     # citations_used: list[Citation] = Field(description="All citations used across the section and subsections")
     # sources_referenced: list[str] = Field(description="All source IDs referenced")
     # writing_notes: str = Field(default="", description="Notes about the writing process")
 
-llm= LLM(
-    model="gpt-4o",
-    api_key=os.getenv("OPENAI_API_KEY")
-)
+
+llm = LLM(model="gpt-4o", api_key=os.getenv("OPENAI_API_KEY"))
 
 writing_agent = Agent(
     role="Academic Writer",
@@ -53,12 +68,12 @@ writing_agent = Agent(
     You write comprehensively and in-depth, never providing summaries but always full, detailed content.""",
     verbose=True,
     allow_delegation=False,
-    llm=llm
+    llm=llm,
 )
 
 
 writing_task = Task(
-        description="""You are an academic writer. Write one thesis section at a time in-depth, using MDX.
+    description="""You are an academic writer. Write one thesis section at a time in-depth, using MDX.
 
         Inputs:
         - topic: {topic}
@@ -80,8 +95,8 @@ writing_task = Task(
 
         Output:
         - Return ONLY a JSON object matching SingleSectionWritingResult (no extra text).""",
-        agent=writing_agent,
-        expected_output="""A complete SingleSectionWritingResult object for ONE section with nested structure where:
+    agent=writing_agent,
+    expected_output="""A complete SingleSectionWritingResult object for ONE section with nested structure where:
 
         1. section: SectionContent - The complete section you are writing
         - Main sections WITHOUT subsections have FULL, COMPREHENSIVE content in MDX format (NOT summaries)
@@ -104,8 +119,8 @@ writing_task = Task(
 
         The structure must be valid JSON matching the SingleSectionWritingResult Pydantic model.
         All content fields must contain comprehensive, detailed MDX formatted text - NO SUMMARIES.""",
-        output_json=SingleSectionWritingResult,
-        guardrail="""
+    output_json=SingleSectionWritingResult,
+    guardrail="""
 
         - The final output must be a valid JSON object matching the SingleSectionWritingResult structure:
           {
@@ -128,13 +143,8 @@ writing_task = Task(
           }
         - All word counts must meet or exceed their target word counts from the outline.
         - All content must be comprehensive and detailed, not summaries.
-        """
-    )
-
-
-writer_crew = Crew(
-    agents=[writing_agent],
-    tasks=[writing_task],
-    verbose=True
+        """,
 )
 
+
+writer_crew = Crew(agents=[writing_agent], tasks=[writing_task], verbose=True)

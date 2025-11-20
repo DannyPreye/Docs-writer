@@ -1,10 +1,7 @@
-
-
 from pathlib import Path
 from dotenv import load_dotenv
 from os import getenv
 from datetime import timedelta
-
 
 load_dotenv()
 
@@ -37,7 +34,7 @@ INSTALLED_APPS = [
     "corsheaders",
     "rest_framework",
     "rest_framework_simplejwt",
-    "djongo",
+    "drf_spectacular",
     "projects",
 ]
 
@@ -70,7 +67,25 @@ REST_FRAMEWORK = {
     "DEFAULT_PERMISSION_CLASSES": (
         "rest_framework.permissions.IsAuthenticated",
     ),
+    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
 }
+
+SPECTACULAR_SETTINGS = {
+    "TITLE": "AI Researcher",
+    "DESCRIPTION": "API for managing AI Researcher",
+    "VERSION": "1.0.0",
+    "SERVE_INCLUDE_SCHEMA": True,
+    "COMPONENT_SPLIT_REQUEST": True,
+    "SECURITY":[{"Bearer":[]}],
+    "SECURITY_DEFINITIONS":{
+        "Bearer":{
+            "type": "http",
+            "scheme": "bearer",
+            "bearerFormat": "JWT",
+        }
+    }
+}
+
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
@@ -92,16 +107,23 @@ WSGI_APPLICATION = "config.wsgi.application"
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
+# PostgreSQL configuration
+DB_NAME = getenv("DB_NAME", "docs_writer_db")
+DB_USER = getenv("DB_USER", "postgres")
+DB_PASSWORD = getenv("DB_PASSWORD", "")
+DB_HOST = getenv("DB_HOST", "localhost")
+DB_PORT = getenv("DB_PORT", "5432")
+
 DATABASES = {
     "default": {
-        "ENGINE": "djongo",
-        "NAME": getenv("MONGO_DB_NAME"),
-        "ENFORCE_SCHEMA": True,
-        "CLIENT": {
-            "HOST": getenv("MONGO_DB_HOST"),
-            "PORT": getenv("MONGO_DB_PORT"),
-            "USER": getenv("MONGO_DB_USER"),
-            "PASSWORD": getenv("MONGO_DB_PASSWORD"),
+        "ENGINE": "django.db.backends.postgresql",
+        "NAME": DB_NAME,
+        "USER": DB_USER,
+        "PASSWORD": DB_PASSWORD,
+        "HOST": DB_HOST,
+        "PORT": DB_PORT,
+        "OPTIONS": {
+            "connect_timeout": 10,
         },
     }
 }
@@ -147,3 +169,21 @@ STATIC_URL = "static/"
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+# Custom User Model
+AUTH_USER_MODEL = "accounts.User"
+
+
+CELERY_BROKER_URL = getenv("CELERY_BROKER_URL","redis://localhost:6379/0")
+CELERY_RESULT_BACKEND = getenv("CELERY_RESULT_BACKEND","redis://localhost:6379/0")
+CELERY_ACCEPT_CONTENT = ['json']
+CELERY_TASK_SERIALIZER = 'json'
+CELERY_RESULT_SERIALIZER = 'json'
+CELERY_TIMEZONE = 'UTC'
+
+# Windows-specific Celery configuration
+CELERY_WORKER_CONCURRENCY = 1  # Use single worker process on Windows
+CELERY_WORKER_POOL = 'solo'  # Use solo pool instead of prefork on Windows
+CELERY_WORKER_PREFETCH_MULTIPLIER = 1
+CELERY_TASK_ACKS_LATE = True
+CELERY_WORKER_DISABLE_RATE_LIMITS = True

@@ -1,5 +1,5 @@
 from datetime import timedelta
-from time import timezone
+from django.utils import timezone
 import uuid
 from rest_framework import serializers
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer, TokenRefreshSerializer
@@ -78,9 +78,10 @@ class VerificationTokenSerializer(serializers.Serializer):
     email = serializers.EmailField(required=True)
 
     def validate_token(self, value):
-        # get email from initial data
         email = self.initial_data.get("email")
-        if not VerificationToken.objects.filter(email=email, token=value).exists():
+        if not email:
+            raise serializers.ValidationError("Email is required to validate token.")
+        if not VerificationToken.objects.filter(user__email=email, token=value).exists():
             raise serializers.ValidationError("Invalid token.")
         return value
 

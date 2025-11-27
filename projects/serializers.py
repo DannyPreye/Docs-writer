@@ -1,4 +1,6 @@
+from django.conf import settings
 from rest_framework import serializers
+from projects.tasks import run_thesis_writing_flow
 from .models import (
     Project,
     Source,
@@ -168,7 +170,15 @@ class ProjectCreateSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         """Create project and set user from request context"""
         validated_data["user"] = self.context["request"].user
-        return super().create(validated_data)
+        project = super().create(validated_data)
+
+        try:
+            print("Running thesis writing flow")
+
+            run_thesis_writing_flow.delay(project.id)
+        except Exception as e:
+            print(f"Error running thesis writing flow: {e}")
+        return project
 
 
 class ProjectSerializer(serializers.ModelSerializer):

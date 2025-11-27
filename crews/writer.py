@@ -5,6 +5,11 @@ import os
 
 load_dotenv()
 
+from crews.tools.project_model_tools import (
+    ProjectStatusUpdateTool,
+    SectionSaveTool,
+)
+
 
 # Pydantic models for writing output
 class Citation(BaseModel):
@@ -60,91 +65,118 @@ class SingleSectionWritingResult(BaseModel):
 
 llm = LLM(model="gpt-4o", api_key=os.getenv("OPENAI_API_KEY"))
 
-writing_agent = Agent(
-    role="Academic Writer",
-    goal="Write high-quality, well-cited academic content for thesis sections",
-    backstory="""You are an experienced academic writer with expertise in scholarly writing.
-    You excel at crafting clear, persuasive arguments with proper citations and academic tone.
-    You write comprehensively and in-depth, never providing summaries but always full, detailed content.""",
-    verbose=True,
-    allow_delegation=False,
-    llm=llm,
-)
 
+def _build_writer_crew() -> Crew:
+    writing_agent = Agent(
+        role="Academic Writer",
+        goal="Write high-quality, well-cited academic content for thesis sections",
+        backstory="""You are an experienced academic writer with expertise in scholarly writing.
+        You excel at crafting clear, persuasive arguments with proper citations and academic tone.
+        You write comprehensively and in-depth, never providing summaries but always full, detailed content.
 
-writing_task = Task(
-    description="""You are an academic writer. Write one thesis section at a time in-depth, using MDX.
+        After drafting content you MUST persist it back to the Django project:
+        - Call `project_section_save_tool` with the section JSON (including project_id) to store content.
+        - Call `project_status_update_tool` when transitioning between writing/complete states.""",
+        verbose=True,
+        allow_delegation=False,
+        llm=llm,
+        tools=[SectionSaveTool(), ProjectStatusUpdateTool()],
+    )
 
-        Inputs:
-        - topic: {topic}
-        - citation_style: {citation_style}
-        - section: JSON object describing ONE main section and its subsections from the outline
-        - research_summary: {research_summary}
-        - outline: full outline JSON: {outline}
+    writing_task = Task(
+        description="""You are an academic writer. Write one thesis section at a time in-depth, using MDX.
 
-        Requirements:
-        - Write COMPREHENSIVE content (no summaries) for:
-          - the main section
-          - every subsection in section.subsections
-        - Use MDX: headings, paragraphs, lists, etc.
-        - Use proper {citation_style} citations where appropriate.
-        - Respect any target/estimated word counts in the provided section/subsection objects:
-          - minimum = target/estimated word count
-          - aim for roughly 120–150% of that minimum.
-          - this should no be a barrier when writing the content, make sure to write extensively and cover all the points in the section and subsections.
+            Inputs:
+            - topic: {topic}
+            - citation_style: {citation_style}
+            - section: JSON object describing ONE main section and its subsections from the outline
+            - research_summary: {research_summary}
+            - outline: full outline JSON: {outline}
+            - project_id: {project_id}
 
-        Output:
-        - Return ONLY a JSON object matching SingleSectionWritingResult (no extra text).""",
-    agent=writing_agent,
-    expected_output="""A complete SingleSectionWritingResult object for ONE section with nested structure where:
+            Requirements:
+            - Write COMPREHENSIVE content (no summaries) for:
+              - the main section
+              - every subsection in section.subsections
+            - Use MDX: headings, paragraphs, lists, etc.
+            - Use proper {citation_style} citations where appropriate.
+            - Respect any target/estimated word counts in the provided section/subsection objects:
+              - minimum = target/estimated word count
+              - aim for roughly 120–150% of that minimum.
+              - this should no be a barrier when writing the content, make sure to write extensively and cover all the points in the section and subsections.
 
-        1. section: SectionContent - The complete section you are writing
-        - Main sections WITHOUT subsections have FULL, COMPREHENSIVE content in MDX format (NOT summaries)
-        - Main sections WITH subsections have COMPREHENSIVE introductory content in MDX format + subsections list populated
-        - Each section's word_count must be >= target_word_count from outline (preferably 120-150% of minimum)
+            Output:
+            - Return ONLY a JSON object matching SingleSectionWritingResult (no extra text).
 
-        2. section.subsections: list[SubsectionContent] - All subsections with FULL, COMPREHENSIVE content
-        - Each SubsectionContent has parent_section field set
-        - Each subsection's word_count must be >= target_word_count from outline (preferably 120-150% of minimum)
-        - Each subsection contains COMPREHENSIVE, DETAILED content (NOT summaries)
+            Persistence Requirements:
+            - After generating the JSON result, call `project_section_save_tool` with:
+              {
+                "project_id": {project_id},
+                "sections": [ ...SingleSectionWritingResult... ],
+                "mark_completed": false|true (set true when the final section is done)
+              }
+            - If you complete the entire project, call `project_status_update_tool`
+              to set the status to "completed".
+            """,
+        agent=writing_agent,
+        expected_output="""A complete SingleSectionWritingResult object for ONE section with nested structure where:
 
-        3. total_word_count: Sum of main section + all subsections
-        - Must meet or exceed the sum of target_word_counts (preferably 120-150% for comprehensive writing)
+            1. section: SectionContent - The complete section you are writing
+            - Main sections WITHOUT subsections have FULL, COMPREHENSIVE content in MDX format (NOT summaries)
+            - Main sections WITH subsections have COMPREHENSIVE introductory content in MDX format + subsections list populated
+            - Each section's word_count must be >= target_word_count from outline (preferably 120-150% of minimum)
 
-        4. All content must be in valid MDX (Markdown Extended) format
+            2. section.subsections: list[SubsectionContent] - All subsections with FULL, COMPREHENSIVE content
+            - Each SubsectionContent has parent_section field set
+            - Each subsection's word_count must be >= target_word_count from outline (preferably 120-150% of minimum)
+            - Each subsection contains COMPREHENSIVE, DETAILED content (NOT summaries)
 
-        5. All content must be COMPREHENSIVE and DETAILED - never write summaries
+            3. total_word_count: Sum of main section + all subsections
+            - Must meet or exceed the sum of target_word_counts (preferably 120-150% for comprehensive writing)
 
-        6. All other required fields properly populated
+            4. All content must be in valid MDX (Markdown Extended) format
 
-        The structure must be valid JSON matching the SingleSectionWritingResult Pydantic model.
-        All content fields must contain comprehensive, detailed MDX formatted text - NO SUMMARIES.""",
-    output_json=SingleSectionWritingResult,
-    guardrail="""
+            5. All content must be COMPREHENSIVE and DETAILED - never write summaries
 
-        - The final output must be a valid JSON object matching the SingleSectionWritingResult structure:
-          {
-            "section": {
-              "section_title": "string",
-              "section_type": "string",
-              "content": "string",
-              "word_count": integer,
-              "subsections": [
-                {
+            6. All other required fields properly populated
+
+            The structure must be valid JSON matching the SingleSectionWritingResult Pydantic model.
+            All content fields must contain comprehensive, detailed MDX formatted text - NO SUMMARIES.""",
+        output_json=SingleSectionWritingResult,
+        guardrail="""
+
+            - The final output must be a valid JSON object matching the SingleSectionWritingResult structure:
+              {
+                "section": {
                   "section_title": "string",
-                  "parent_section": "string",
                   "section_type": "string",
                   "content": "string",
-                  "word_count": integer
-                }
-              ]
-            },
-            "total_word_count": integer,
-          }
-        - All word counts must meet or exceed their target word counts from the outline.
-        - All content must be comprehensive and detailed, not summaries.
-        """,
-)
+                  "word_count": integer,
+                  "subsections": [
+                    {
+                      "section_title": "string",
+                      "parent_section": "string",
+                      "section_type": "string",
+                      "content": "string",
+                      "word_count": integer
+                    }
+                  ]
+                },
+                "total_word_count": integer,
+              }
+            - All word counts must meet or exceed their target word counts from the outline.
+            - All content must be comprehensive and detailed, not summaries.
+            """,
+    )
+
+    return Crew(agents=[writing_agent], tasks=[writing_task], verbose=True)
 
 
-writer_crew = Crew(agents=[writing_agent], tasks=[writing_task], verbose=True)
+_writer_crew: Crew | None = None
+
+
+def get_writer_crew() -> Crew:
+    global _writer_crew
+    if _writer_crew is None:
+        _writer_crew = _build_writer_crew()
+    return _writer_crew

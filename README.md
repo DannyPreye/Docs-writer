@@ -22,6 +22,18 @@ The system uses a CrewAI Flow with three main stages:
 
 The Django backend provides API endpoints for managing thesis projects, user authentication, and storing results.
 
+### CrewAI Project Tools
+
+Each crew now has access to purpose-built tools located in `crews/tools/project_model_tools.py`:
+
+- `project_research_save_tool` – Persists research summaries and source lists while moving the project into the `researching` status.
+- `project_outline_save_tool` – Saves structured outlines (including nested sections) and marks the project as `outlined`.
+- `project_section_save_tool` – Stores written sections, supports hierarchical content, and updates the project status to `writing` or `completed`.
+- `project_status_update_tool` – Allows any agent to explicitly update the project status if additional workflow states are needed.
+- `project_lookup_tool` – Lightweight helper for validating project IDs and fetching context.
+
+These tools ensure that every step of the CrewAI pipeline keeps the Django project models in sync, enabling real-time progress tracking across research, outlining, and writing phases.
+
 ## Prerequisites
 
 - Python 3.8+

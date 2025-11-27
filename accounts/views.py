@@ -74,6 +74,15 @@ def profile_view(request):
     description="Verify email using a verification token",
     request=VerificationTokenSerializer,
     responses={200: UserProfileSerializer},
+    examples=[
+        OpenApiExample(
+            "Verification Example",
+            value={
+                "token": "1234567890",
+                "email": "john@example.com",
+            },
+        )
+    ],
 )
 @api_view(["POST"])
 @permission_classes([permissions.AllowAny])
